@@ -1,7 +1,7 @@
 // ---------- LOGIC START ----------
 const DEFAULT_CODES = {
   "REG":   "Vehicle Registration",
-  "DDC":   "Defensive Driving Course (DDC) Certificate",
+  "DDC":   "Defensive Driving Course (DDC)",
   "DMV":   "DMV Abstract (Driving Record)",
   "TITLE": "Vehicle Title",
   "DL":    "Driver's License",
@@ -21,10 +21,11 @@ function expandDocs(raw, codes){
     const code = written.toUpperCase();
     const who = m && m[2] ? titleCase(m[2]) : "";
     const known = Object.prototype.hasOwnProperty.call(codes, code);
-    const label = (known ? codes[code] : written) + (who ? " – " + who : "");
+    const base = known ? codes[code] : written;
+    const label = base + (who ? " – " + who : "");
     if (seen.has(label.toLowerCase())) continue;
     seen.add(label.toLowerCase());
-    out.push({code, who, label, known, item});
+    out.push({code, who, base, label, known, item});
   }
   return out;
 }
@@ -64,19 +65,47 @@ function fillTemplate(t, vals){
   });
 }
 
+// One line per person: "TLC License, Vehicle Registration for Fokrul Islam" / "TLC License for your driver".
+// (OWNER) means the client. Documents with no person go on their own line.
+function groupDocLines(docs, clientName){
+  const groups = new Map();
+  for (const d of docs){
+    const key = d.who.toLowerCase();
+    if (!groups.has(key)) groups.set(key, {who: d.who, items: []});
+    const g = groups.get(key);
+    if (!g.items.some(x => x.toLowerCase() === d.base.toLowerCase())) g.items.push(d.base);
+  }
+  const keys = [...groups.keys()].sort((a, b) => (b === "owner") - (a === "owner"));   // owner first, others keep their order
+  return keys.map(k => {
+    const g = groups.get(k);
+    let who = "";
+    if (k === "owner") who = " for " + (clientName || "you");
+    else if (/driver/.test(k)) who = " for your " + k;
+    else if (k) who = " for " + g.who;
+    return g.items.join(", ") + who;
+  });
+}
+
+function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
 function buildEmail(f, codes){
   const docs = expandDocs(f.docs, codes);
   const policy = String(f.ref||"").trim();
-  const vals = {
-    name: titleCase(f.name) || "Customer",
-    policy, ref: policy,
-    documents: docs.length ? docs.map(d => "  • " + d.label).join("\n") : "  • (add the required documents)",
-    signature: String(f.sig||"").trim()
-  };
-  let subject = fillTemplate(f.subjectTpl == null ? DEFAULT_SUBJECT : f.subjectTpl, vals).replace(/\s+/g, " ").trim();
+  const name = titleCase(f.name);
+  const lines = docs.length ? groupDocLines(docs, name) : ["(add the required documents)"];
+  const TOKEN = "\u0000DOCS\u0000";
+  const vals = { name: name || "Customer", policy, ref: policy, documents: TOKEN, signature: String(f.sig||"").trim() };
+
+  let subject = fillTemplate(f.subjectTpl == null ? DEFAULT_SUBJECT : f.subjectTpl, Object.assign({}, vals, {documents: lines.join(", ")}))
+    .replace(/\s+/g, " ").trim();
   if (!policy) subject = subject.replace(/\s+(for|-|–|:|#)$/i, "").trim();   // no dangling "For" when the policy number is empty
-  const body = fillTemplate(f.bodyTpl == null ? DEFAULT_BODY : f.bodyTpl, vals).replace(/\n{3,}/g, "\n\n").trim();
-  return { subject, body, docs };
+
+  const filled = fillTemplate(f.bodyTpl == null ? DEFAULT_BODY : f.bodyTpl, vals).replace(/\n{3,}/g, "\n\n").trim();
+  const parts = filled.split(TOKEN);
+  const body = parts.join(lines.join("\n"));
+  const docsHtml = lines.map(l => "<b>" + escHtml(l) + "</b>").join("<br>");
+  const bodyHtml = parts.map(p => escHtml(p).replace(/\n/g, "<br>")).join(docsHtml);
+  return { subject, body, bodyHtml, lines, docs };
 }
 
 // Parse the first row of tab-separated text copied from Excel (handles quoted multi-line cells).
@@ -144,7 +173,7 @@ $("ref").value = "FPT000000";
 $("docs").value = "DMV, REG, TITLE\nTLC (DRIVER)";
 function hideExample(){ $("exampleTag").hidden = true; }
 
-let current = {subject:"", body:"", to:""};
+let current = {subject:"", body:"", html:"", to:""};
 
 /* ---------- render the email ---------- */
 function render(){
@@ -153,12 +182,12 @@ function render(){
   const e = buildEmail(f, codes);
   const to = splitEmails($("email").value).join(", ");
   const cc = $("cc").value.trim();
-  current = {subject:e.subject, body:e.body, to};
+  current = {subject:e.subject, body:e.body, html:e.bodyHtml, to};
 
   $("oTo").textContent = to;
   $("oCc").textContent = cc;
   $("oSubj").textContent = e.subject;
-  $("oBody").textContent = e.body;
+  $("oBody").innerHTML = e.bodyHtml;   // bodyHtml is built from escaped text
 
   const chips = $("chips"); chips.textContent = "";
   let unknown = 0;
@@ -190,8 +219,10 @@ function render(){
   pill.className = "pill " + (msg ? "warn" : "ok");
   pill.textContent = msg || "Ready to send";
 
-  const q = new URLSearchParams({view:"cm", fs:"1", to, cc, su:e.subject, body:e.body});
-  $("gmailBtn").href = "https://mail.google.com/mail/?" + q.toString().replace(/\+/g,"%20");
+  const url = params => "https://mail.google.com/mail/?" + new URLSearchParams(params).toString().replace(/\+/g,"%20");
+  current.gmailBare = url({view:"cm", fs:"1", to, cc, su:e.subject});                 // body pasted with Ctrl+V (keeps bold)
+  current.gmailPlain = url({view:"cm", fs:"1", to, cc, su:e.subject, body:e.body});    // fallback: plain text, no bold
+  $("gmailBtn").href = current.gmailBare;
 }
 
 /* ---------- document codes ---------- */
@@ -232,9 +263,9 @@ function addCodeRow(code, meaning, focus){
 }
 
 /* ---------- toast + copy ---------- */
-function flash(msg){
+function flash(msg, ms){
   const t = $("status"); t.textContent = msg; t.classList.add("show");
-  clearTimeout(flash.t); flash.t = setTimeout(()=>t.classList.remove("show"), 2400);
+  clearTimeout(flash.t); flash.t = setTimeout(()=>t.classList.remove("show"), ms || 2400);
 }
 async function copyText(t, label){
   try { await navigator.clipboard.writeText(t); flash(label + " copied"); }
@@ -246,10 +277,28 @@ async function copyText(t, label){
     flash(ok ? label + " copied" : "Couldn't copy. Select the text in the preview and copy it by hand.");
   }
 }
+// Copies formatted text (bold kept) synchronously, so it works right before Gmail opens in a new tab.
+function copyRich(html){
+  const box = document.createElement("div");
+  box.contentEditable = "true";
+  box.style.cssText = "position:fixed;left:-9999px;top:0;white-space:normal;font-family:Arial,sans-serif;font-size:14px;color:#000;background:#fff";
+  box.innerHTML = html;
+  document.body.appendChild(box);
+  const sel = window.getSelection(), range = document.createRange();
+  range.selectNodeContents(box); sel.removeAllRanges(); sel.addRange(range);
+  let ok = false; try { ok = document.execCommand("copy"); } catch(_){}
+  sel.removeAllRanges(); box.remove();
+  return ok;
+}
+$("gmailBtn").addEventListener("click", ()=>{
+  const ok = copyRich(current.html);
+  $("gmailBtn").href = ok ? current.gmailBare : current.gmailPlain;   // runs before the link opens
+  flash(ok ? "Email copied. In Gmail, click in the message box and press Ctrl+V." : "Gmail opened with plain text. Bold couldn't be copied in this browser.", 7000);
+});
 document.querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click", ()=>{
   const k = b.dataset.copy;
   if (k === "subject") copyText(current.subject, "Subject");
-  if (k === "body") copyText(current.body, "Email text");
+  if (k === "body"){ if (copyRich(current.html)) flash("Email copied with bold. Paste it into your email."); else copyText(current.body, "Email text"); }
   if (k === "to") copyText(current.to || "", "Client email");
 }));
 

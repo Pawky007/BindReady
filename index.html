@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="BindReady builds the email asking a client for the documents needed to bind their insurance policy.">
+<title>BindReady</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M16 6.5l7.5 2.8v5.9c0 4.9-3.2 8.8-7.5 10.3-4.3-1.5-7.5-5.4-7.5-10.3V9.3z" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linejoin="round"/><path d="M12.6 16.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div>
+        <div class="brand-name">BindReady</div>
+        <div class="brand-sub">Document request emails for policy binding, ready in seconds</div>
+      </div>
+    </div>
+    <nav class="top-actions" aria-label="Page">
+      <button type="button" class="ghost" id="guideBtn" aria-controls="howto">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M7.8 7.8a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.4v.4M10 14.3v.2"/></svg>
+        <span>How to use</span>
+      </button>
+      <button type="button" class="ghost" id="settingsBtn" aria-controls="drawer">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5h8M15 5.5h2M3 10h2M9 10h8M3 14.5h6M13 14.5h4"/><circle cx="13" cy="5.5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="11" cy="14.5" r="2"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="guide card" id="howto" aria-labelledby="guideTitle">
+    <h2 id="guideTitle" class="sr-only">How it works</h2>
+    <ol class="steps">
+      <li><span class="num">1</span><span><b>Copy</b> the client's row in Excel</span></li>
+      <li><span class="num">2</span><span><b>Press Ctrl+V</b> on this page</span></li>
+      <li><span class="num">3</span><span><b>Open in Gmail</b> and press Send</span></li>
+    </ol>
+    <p class="guide-tip">First time? Put your name in <b>Settings</b>.</p>
+    <button type="button" class="icon-btn guide-close" id="guideHide" aria-label="Hide these steps" title="Hide"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+  </section>
+
+  <div class="grid">
+    <section class="card form" aria-labelledby="h-client">
+      <div class="card-head">
+        <div class="title-row">
+          <h2 id="h-client">Client details</h2>
+          <span class="tag" id="exampleTag">Example</span>
+        </div>
+        <button id="clearBtn" type="button" class="ghost small">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New client
+        </button>
+      </div>
+
+      <label class="paste" for="rowPaste">
+        <span class="paste-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5V3.5h6v1M9 10h6M9 14h6M9 18h3"/></svg></span>
+        <span class="paste-text">
+          <b>Paste a row from Excel</b>
+          <span>Press Ctrl+V anywhere on this page, or click here and paste.</span>
+        </span>
+        <textarea id="rowPaste" rows="1" aria-label="Paste an Excel row here" placeholder="Paste here"></textarea>
+      </label>
+      <p class="filled" id="rowNote" hidden></p>
+
+      <div class="fields">
+        <div class="field"><label for="name">Client name</label><input id="name" autocomplete="off" placeholder="e.g. Fokrul Islam"></div>
+        <div class="field"><label for="email">Client email</label><input id="email" class="mono" autocomplete="off" inputmode="email" placeholder="name@gmail.com"></div>
+        <p class="warn span2" id="emailWarn" hidden></p>
+        <div class="field span2"><label for="ref">Policy number <span class="hint">used in the subject</span></label><input id="ref" class="mono" autocomplete="off" placeholder="e.g. FPT022058"></div>
+        <div class="field span2">
+          <label for="docs">Required documents <span class="hint">codes, as in your sheet</span></label>
+          <textarea id="docs" rows="3" class="mono" placeholder="e.g. DMV, REG, TITLE&#10;TLC (DRIVER)"></textarea>
+          <div class="chips" id="chips" aria-live="polite"></div>
+          <p class="note" id="unknownNote" hidden>Orange codes have no meaning yet, so they go in the email as written. Tap one to add it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card compose" aria-labelledby="h-mail">
+      <div class="card-head">
+        <h2 id="h-mail">Email preview</h2>
+        <span class="pill" id="readyPill"></span>
+      </div>
+      <div class="mail">
+        <div class="mrow"><span class="mlabel">To</span><span class="mval mono" id="oTo"></span></div>
+        <div class="mrow"><span class="mlabel">Cc</span><span class="mval mono" id="oCc"></span></div>
+        <div class="mrow"><span class="mlabel">Subject</span><span class="mval subj" id="oSubj"></span>
+          <button type="button" class="icon-btn" data-copy="subject" aria-label="Copy subject" title="Copy subject"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="10" rx="1.5"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-6A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7"/></svg></button>
+        </div>
+        <div class="mbody" id="oBody"></div>
+      </div>
+      <div class="actions">
+        <a class="btn primary" id="gmailBtn" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10l14-6-5 13-2.5-5.5z M9.5 11.5L17 4"/></svg>Open in Gmail
+        </a>
+        <button type="button" class="btn" data-copy="body">Copy email text</button>
+        <button type="button" class="btn" data-copy="to">Copy client email</button>
+      </div>
+      <p class="note">Gmail opens a new message with everything filled in. Nothing is sent until you press Send there.</p>
+    </section>
+  </div>
+
+  <footer class="credit">Made by <b>Abrar Rejwan Prince</b></footer>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Settings</h2>
+    <button type="button" class="icon-btn" id="drawerClose" aria-label="Close settings"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+  </div>
+  <div class="drawer-body">
+    <section class="set">
+      <h3>Your details</h3>
+      <div class="field"><label for="sig">Signature</label><textarea id="sig" rows="3"></textarea></div>
+      <div class="field"><label for="cc">CC <span class="hint">leave empty for no CC</span></label><input id="cc" class="mono" autocomplete="off"></div>
+    </section>
+
+    <section class="set">
+      <h3>Email wording</h3>
+      <div class="field"><label for="tSubj">Subject</label><input id="tSubj" autocomplete="off"></div>
+      <div class="field"><label for="tBody">Email text</label><textarea id="tBody" rows="12"></textarea></div>
+      <p class="note">These fill in automatically: <code>{name}</code> client name, <code>{policy}</code> policy number, <code>{documents}</code> list of documents, <code>{signature}</code> your signature.</p>
+      <div class="row-btns"><button type="button" class="ghost small" id="resetTemplate">Reset wording</button></div>
+    </section>
+
+    <section class="set">
+      <h3>Document codes</h3>
+      <div class="code-head" aria-hidden="true"><span>Code</span><span>What the client should send</span></div>
+      <div id="codeList" class="code-list"></div>
+      <div class="row-btns">
+        <button type="button" class="ghost small" id="addCode">Add a code</button>
+        <button type="button" class="ghost small" id="resetCodes">Reset codes</button>
+      </div>
+    </section>
+  </div>
+  <div class="drawer-foot">Changes save automatically in this browser.</div>
+</aside>
+
+<div class="toast" id="status" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
